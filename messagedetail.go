@@ -1,7 +1,7 @@
 package sipengine
 
 import "time"
-
+//TODO Implement a way of Get/Set this from various systems (memory, redis, etc)
 type MessageDetail struct {
 	From string
 	To string

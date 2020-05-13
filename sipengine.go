@@ -3,6 +3,7 @@ package sipengine
 import (
 	"bytes"
 	"context"
+	"github.com/pkg/errors"
 	"net"
 )
 
@@ -46,12 +47,22 @@ func (e Engine) ListenAndServe() error {
 		for {
 			select {
 				case m := <- e.channels.Ingress:
-					for _, v := range e.steps {
-						err := v(m)
-						if err != nil {
-							e.channels.Error <- err
+					go func(m *Message){
+						for _, v := range e.steps {
+							err := v(m)
+							if err != nil {
+
+								e.channels.Error <- err
+
+								//Is it a termination error?
+								if _, ok := errors.Cause(err).(*MessageTerminationError); ok {
+									//Let's stop all processing for the routine for this message
+									return
+								}
+							}
 						}
-					}
+					}(m)
+
 				case <- e.ctx.Done():
 					return
 				default:
