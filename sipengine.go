@@ -36,10 +36,11 @@ func NewEngine(address string, ctx context.Context, channelmap ChannelMap, steps
 
 //Start listening and funneling off requests
 func (e Engine) ListenAndServe() error {
+
 	pc, err := net.ListenPacket("udp", e.address)
 
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failure during startup")
 	}
 
 	//Processing for messages on ingress channel
@@ -47,23 +48,35 @@ func (e Engine) ListenAndServe() error {
 		for {
 			select {
 				case m := <- e.channels.Ingress:
-					go func(m *Message){
+					//Spin off a separate routine for each message to process in order to
+					//allow for termination of execution as users signal for it.
+					mctx, mcancel := context.WithCancel(e.ctx)
+					defer mcancel()
+					go func(){
 						for _, v := range e.steps {
+							select {
+								//Don't work on this message if the context is already cancelled
+								//Or completed
+								case <- mctx.Done():
+									return
+								default:
+									//
+							}
 							err := v(m)
 							if err != nil {
-
-								e.channels.Error <- err
-
 								//Is it a termination error?
 								if _, ok := errors.Cause(err).(*MessageTerminationError); ok {
 									//Let's stop all processing for the routine for this message
 									return
+								} else {
+									e.channels.Error <- errors.Wrap(err,"error during pipeline step processing")
 								}
 							}
 						}
-					}(m)
+					}()
 
 				case <- e.ctx.Done():
+					//The context has marked itself as complete so let's stop processing new messages
 					return
 				default:
 					//
@@ -78,7 +91,9 @@ func (e Engine) ListenAndServe() error {
 			buf := make([]byte, 2048)
 			_, addr, err := pc.ReadFrom(buf)
 			if err != nil {
-				e.channels.Error <- err
+				//This is a scenario where we would want to stop as we can't listen from the network
+				//for some reason
+				e.channels.Error <- errors.Wrap(err, "unable to read from listening socket")
 				return
 			}
 
@@ -103,6 +118,8 @@ func (e Engine) ListenAndServe() error {
 	select {
 		case <- e.ctx.Done():
 			pc.Close()
+			//Wait for existing messages to filter out
+			//TODO: How to track active dialogs and messages without state
 			err = NewShutDownSignalError("Context has been cancelled. Shutdown initiating")
 	}
 

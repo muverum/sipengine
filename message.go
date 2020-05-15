@@ -15,10 +15,16 @@ import (
 type Message struct {
 	layers.SIP
 	ctx context.Context
-	Raw []byte
+	//Raw is retained for potential audit purposes
+	raw []byte
 	SessionDescription *sdp.Message
-	//Detail will be used as the foundation for CDR-type records.
-	Detail *MessageDetail
+	//Detail is the CDR reporter used for collecting and Reporting the data
+	//In most cases it will also be the sender.
+	Detail CallDetailSender
+}
+
+func (m Message) GetOriginalBytes() []byte {
+	return m.raw
 }
 
 func NewMessage(data io.Reader, ctx context.Context) (*Message, error) {
@@ -32,7 +38,7 @@ func NewMessage(data io.Reader, ctx context.Context) (*Message, error) {
 		return s, err
 	}
 
-	s.Raw = buf.Bytes()
+	s.raw = buf.Bytes()
 	s.Headers = make(map[string][]string)
 
 	//Process SIP Data
