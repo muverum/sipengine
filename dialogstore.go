@@ -2,23 +2,23 @@ package sipengine
 
 import (
 	"context"
-	"github.com/pkg/errors"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 type Dialog struct {
 	CallID string
-	From string
-	To string
-	Start time.Time
-	End time.Time
+	From   string
+	To     string
+	Start  time.Time
+	End    time.Time
 	Active bool
 	//Metadata
 	Labels map[string][]string
-	Mux sync.Mutex
+	Mux    sync.Mutex
 }
-
 
 type DialogStore interface {
 	Exists(callID string) error
@@ -40,18 +40,17 @@ type DialogStore interface {
 type InMemoryDialogStore struct {
 	//Used to inherit cancellation et all
 	//From upstream
-	Ctx context.Context
-	Dialogs []Dialog
+	Ctx      context.Context
+	Dialogs  []Dialog
 	Channels struct {
-		Write  chan Dialog
-		ReadRequest chan string
+		Write        chan Dialog
+		ReadRequest  chan string
 		ReadResponse chan string
-		Remove chan string
-		Cancel chan string
-		Error  chan error
+		Remove       chan string
+		Cancel       chan string
+		Error        chan error
 	}
 }
-
 
 func (i *InMemoryDialogStore) Exists(callID string) error {
 
@@ -69,8 +68,8 @@ func (i *InMemoryDialogStore) WriteDialog(d Dialog) {
 }
 
 func (i *InMemoryDialogStore) ExistsByLabel(callID string) error {
-	for _ , v := range i.Dialogs {
-		for _ , l := range v.Labels {
+	for _, v := range i.Dialogs {
+		for _, l := range v.Labels {
 			if len(l) > 0 {
 				return nil
 			}

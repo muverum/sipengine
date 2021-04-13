@@ -4,11 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"io"
+	"strings"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"gortc.io/sdp"
-	"io"
-	"strings"
 )
 
 //Message is the raw definition of the SIP structure (including SIP and SDP fields)
@@ -16,7 +17,7 @@ type Message struct {
 	layers.SIP
 	ctx context.Context
 	//Raw is retained for potential audit purposes
-	raw []byte
+	raw                []byte
 	SessionDescription *sdp.Message
 	//Detail is the CDR reporter used for collecting and Reporting the data
 	//In most cases it will also be the sender.
@@ -32,7 +33,7 @@ func NewMessage(data io.Reader, ctx context.Context) (*Message, error) {
 	s.Detail = &MessageDetail{}
 	s.ctx = ctx
 	buf := new(bytes.Buffer)
-	_, err := io.Copy(buf,data)
+	_, err := io.Copy(buf, data)
 
 	if err != nil {
 		return s, err
@@ -42,9 +43,13 @@ func NewMessage(data io.Reader, ctx context.Context) (*Message, error) {
 	s.Headers = make(map[string][]string)
 
 	//Process SIP Data
-	sipContent, sdpContent, err := splitMessage(bytes.NewReader(s.Raw))
+	sipContent, sdpContent, err := splitMessage(bytes.NewReader(s.raw))
 
-	err = s.DecodeFromBytes(sipContent,gopacket.NilDecodeFeedback)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.DecodeFromBytes(sipContent, gopacket.NilDecodeFeedback)
 
 	if err != nil {
 		return s, err
@@ -60,9 +65,7 @@ func NewMessage(data io.Reader, ctx context.Context) (*Message, error) {
 	return s, err
 }
 
-
-
-func splitMessage(input io.Reader) (sip []byte, rtp []byte, err error){
+func splitMessage(input io.Reader) (sip []byte, rtp []byte, err error) {
 
 	scanner := bufio.NewScanner(input)
 	scanner.Split(bufio.ScanLines)
@@ -72,22 +75,22 @@ func splitMessage(input io.Reader) (sip []byte, rtp []byte, err error){
 
 	dividerReached := false
 
-	for scanner.Scan(){
+	for scanner.Scan() {
 		if scanner.Text() == "" {
 			continue
 		}
 
-		if ! dividerReached {
-			sipLines = append(sipLines,scanner.Text())
+		if !dividerReached {
+			sipLines = append(sipLines, scanner.Text())
 		} else {
-			rtpLines = append(rtpLines,scanner.Text())
+			rtpLines = append(rtpLines, scanner.Text())
 		}
 
-		if strings.Contains(strings.ToLower(scanner.Text()),"content-length"){
+		if strings.Contains(strings.ToLower(scanner.Text()), "content-length") {
 			dividerReached = true
 		}
 	}
 
-	return []byte(strings.Join(sipLines,"\n")),[]byte(strings.Join(rtpLines,"\n")),nil
+	return []byte(strings.Join(sipLines, "\n")), []byte(strings.Join(rtpLines, "\n")), nil
 
 }

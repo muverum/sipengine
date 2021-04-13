@@ -3,7 +3,7 @@ package sipengine
 import "io"
 
 //CallDetailReporter as an interface is used to generate a STRING format CDR from any user provided
-//struct. It is important that it is a string (wither line of a CSV, JSON, or TSV file) as that is
+//struct. It is important that it is a string (Whether line of a CSV, JSON, or TSV file) as that is
 //How most clients expect to receive CDRs for billing
 type CallDetailReporter interface {
 	GetCDR() (io.Reader, error)
